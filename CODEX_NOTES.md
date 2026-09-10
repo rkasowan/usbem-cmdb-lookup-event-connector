@@ -9,3 +9,4 @@
 - Connector script record sys_id: `3744a1bc939fc7d0c8ebf85bdd03d66f`.
 - Validated display class `Business Application` -> `cmdb_ci_business_app` and technical class `cmdb_ci_server`.
 - The only accepted lookup input is the singular nested `ci_identifier` object. Its fields use AND semantics and may name any valid inherited/class field. Results serialize all fields with raw and display values.
+- Scoped runtime compatibility: field enumeration uses `sys_dictionary` over the CI inheritance hierarchy. Do not introduce `GlideRecord.getFields()` or `getElements()`.

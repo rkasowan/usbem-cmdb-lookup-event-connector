@@ -29,7 +29,7 @@ One Event-style identifier object:
 - `ci_type` must be a real class extending `cmdb_ci`.
 - Identifier keys must resolve to real fields on the selected CI class. Caller-supplied operators and encoded queries are not accepted.
 - Maximum 100 matching records per response; `truncated` reports when the limit is reached.
-- Matching records include every field available on the resolved class, with raw and display values.
+- Matching records include every field available on the resolved class, with raw and display values. Field names are resolved from `sys_dictionary` across the class hierarchy; the connector does not call scoped-prohibited `getFields()` or `getElements()` APIs.
 - The endpoint is service-mediated access. It does not grant Table API or list access to CMDB.
 
 ## Deployment and rollback

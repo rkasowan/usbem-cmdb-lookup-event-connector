@@ -65,6 +65,51 @@
         return false;
     }
 
+    function classHierarchy(tableName) {
+        var names = [];
+        var current = tableName;
+        var visited = {};
+        var dbo;
+        var parentId;
+        while (current && !visited[current]) {
+            names.push(current);
+            if (current === 'cmdb_ci') return names;
+            visited[current] = true;
+            dbo = new GlideRecord('sys_db_object');
+            dbo.addQuery('name', current);
+            dbo.setLimit(1);
+            dbo.query();
+            if (!dbo.next()) break;
+            parentId = text(dbo.getValue('super_class'));
+            if (!parentId) break;
+            dbo = new GlideRecord('sys_db_object');
+            if (!dbo.get(parentId)) break;
+            current = text(dbo.getValue('name'));
+        }
+        throw new Error('Unable to resolve the CMDB inheritance hierarchy for ' + tableName + '.');
+    }
+
+    function dictionaryFields(tableName) {
+        var hierarchy = classHierarchy(tableName);
+        var fields = ['sys_id', 'sys_class_name'];
+        var seen = {sys_id: true, sys_class_name: true};
+        var dictionary = new GlideRecord('sys_dictionary');
+        var field;
+        dictionary.addQuery('name', 'IN', hierarchy.join(','));
+        dictionary.addQuery('element', '!=', '');
+        dictionary.addQuery('active', true);
+        dictionary.orderBy('element');
+        dictionary.query();
+        while (dictionary.next()) {
+            field = text(dictionary.getValue('element'));
+            if (field && !seen[field]) {
+                seen[field] = true;
+                fields.push(field);
+            }
+        }
+        return fields;
+    }
+
     function resolveCiType(value) {
         var requested = trim(value);
         var dbo = new GlideRecord('sys_db_object');
@@ -105,14 +150,13 @@
         };
     }
 
-    function serialize(gr) {
+    function serialize(gr, fields) {
         var record = { table: gr.getTableName(), sys_id: text(gr.getUniqueValue()), fields: {} };
-        var elements = gr.getFields();
         var i;
         var field;
         var item;
-        for (i = 0; i < elements.size(); i++) {
-            field = text(elements.get(i).getName());
+        for (i = 0; i < fields.length; i++) {
+            field = fields[i];
             if (!field || !gr.isValidField(field)) continue;
             item = fieldValue(gr, field);
             record.fields[field] = item;
@@ -124,6 +168,7 @@
     function lookup(tableName, identifier) {
         var records = [];
         var truncated = false;
+        var fields = dictionaryFields(tableName);
         var field;
         var gr;
         gr = new GlideRecord(tableName);
@@ -138,7 +183,7 @@
                 truncated = true;
                 break;
             }
-            records.push(serialize(gr));
+            records.push(serialize(gr, fields));
         }
         return { records: records, truncated: truncated };
     }
