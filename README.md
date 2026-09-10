@@ -37,3 +37,21 @@ One Event-style identifier object:
 Run `python3 scripts/deploy.py`. Assign the role only to the intended API identity, then use the smoke examples in `scripts/smoke_test.py`.
 
 Rollback by deactivating the `USBEM CMDB Lookup` listener and removing the role from the integration identity. No CMDB records are created or changed.
+
+## Global field-enumeration wrapper
+
+`global.USBEMCMDBFieldEnumerator` safely wraps the otherwise scope-sensitive `GlideRecord.getFields()` and `GlideRecord.getElements()` methods. Both wrapper methods return a plain JavaScript array of technical field names. They reject every GlideRecord whose table is not `cmdb_ci` or a descendant.
+
+```javascript
+var ci = new GlideRecord('cmdb_ci_server');
+ci.setLimit(1);
+ci.query();
+ci.next();
+
+var fields = new global.USBEMCMDBFieldEnumerator().getFields(ci);
+var elements = new global.USBEMCMDBFieldEnumerator().getElements(ci);
+```
+
+The Script Include is Global, accessible from all application scopes with caller tracking, and has an explicit allowed execute privilege for `x_usbna_usb_event`. The table restriction is enforced again inside every public method.
+
+The two methods intentionally preserve their underlying platform behavior. On the validation Business Application record, `getFields()` returned 115 unique names while `getElements()` returned 116. Prefer `getElements()` when the caller needs the most complete enumeration on this instance.
