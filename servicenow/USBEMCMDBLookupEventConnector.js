@@ -1,7 +1,5 @@
 (function process(/*RESTAPIRequest*/ request, body) {
     var REQUIRED_ROLE = 'x_usbna_usb_event.cmdb_lookup_api';
-    var MAX_IDENTIFIER_GROUPS = 25;
-    var MAX_MATCHES_PER_GROUP = 50;
     var MAX_TOTAL_MATCHES = 100;
 
     function text(value) {
@@ -37,24 +35,12 @@
         return parsed;
     }
 
-    function identifierGroups(input) {
-        var supplied = typeof input.ci_identifiers !== 'undefined' ? input.ci_identifiers : input.ci_identifier;
-        var parsed = parseJson(supplied, 'ci_identifier');
-        var groups;
-        var i;
-        if (!parsed) throw new Error('ci_identifier or ci_identifiers is required.');
-        groups = parsed instanceof Array ? parsed : [parsed];
-        if (!groups.length) throw new Error('At least one CI identifier is required.');
-        if (groups.length > MAX_IDENTIFIER_GROUPS) {
-            throw new Error('No more than ' + MAX_IDENTIFIER_GROUPS + ' identifier groups are allowed.');
+    function ciIdentifier(input) {
+        var identifier = input.ci_identifier;
+        if (!identifier || typeof identifier !== 'object' || identifier instanceof Array) {
+            throw new Error('ci_identifier is required and must be a nested JSON object.');
         }
-        for (i = 0; i < groups.length; i++) {
-            groups[i] = parseJson(groups[i], 'ci_identifiers[' + i + ']');
-            if (!groups[i] || typeof groups[i] !== 'object' || groups[i] instanceof Array) {
-                throw new Error('Each CI identifier must be a JSON object of field/value pairs.');
-            }
-        }
-        return groups;
+        return identifier;
     }
 
     function isCmdbClass(tableName) {
@@ -96,7 +82,7 @@
         return matches[0];
     }
 
-    function validateIdentifier(gr, identifier, index) {
+    function validateIdentifier(gr, identifier) {
         var field;
         var count = 0;
         for (field in identifier) {
@@ -106,10 +92,10 @@
                 throw new Error('Identifier field ' + field + ' is not valid for ' + gr.getTableName() + '.');
             }
             if (!trim(identifier[field])) {
-                throw new Error('Identifier values cannot be blank (group ' + index + ', field ' + field + ').');
+                throw new Error('Identifier values cannot be blank (field ' + field + ').');
             }
         }
-        if (!count) throw new Error('Identifier group ' + index + ' is empty.');
+        if (!count) throw new Error('ci_identifier cannot be empty.');
     }
 
     function fieldValue(gr, field) {
@@ -135,41 +121,26 @@
         return record;
     }
 
-    function lookup(tableName, identifiers) {
-        var groups = [];
+    function lookup(tableName, identifier) {
         var records = [];
-        var seen = {};
         var truncated = false;
-        var i;
         var field;
         var gr;
-        var matches;
-        var record;
-        for (i = 0; i < identifiers.length; i++) {
-            gr = new GlideRecord(tableName);
-            validateIdentifier(gr, identifiers[i], i);
-            for (field in identifiers[i]) {
-                if (identifiers[i].hasOwnProperty(field)) gr.addQuery(field, trim(identifiers[i][field]));
-            }
-            gr.setLimit(MAX_MATCHES_PER_GROUP + 1);
-            gr.query();
-            matches = [];
-            while (gr.next()) {
-                if (matches.length >= MAX_MATCHES_PER_GROUP || records.length >= MAX_TOTAL_MATCHES) {
-                    truncated = true;
-                    break;
-                }
-                record = serialize(gr);
-                matches.push(record);
-                if (!seen[record.sys_id]) {
-                    seen[record.sys_id] = true;
-                    records.push(record);
-                }
-            }
-            groups.push({ index: i, identifier: identifiers[i], match_count: matches.length, matches: matches });
-            if (records.length >= MAX_TOTAL_MATCHES) truncated = true;
+        gr = new GlideRecord(tableName);
+        validateIdentifier(gr, identifier);
+        for (field in identifier) {
+            if (identifier.hasOwnProperty(field)) gr.addQuery(field, trim(identifier[field]));
         }
-        return { groups: groups, records: records, truncated: truncated };
+        gr.setLimit(MAX_TOTAL_MATCHES + 1);
+        gr.query();
+        while (gr.next()) {
+            if (records.length >= MAX_TOTAL_MATCHES) {
+                truncated = true;
+                break;
+            }
+            records.push(serialize(gr));
+        }
+        return { records: records, truncated: truncated };
     }
 
     var payload = {};
@@ -183,18 +154,17 @@
         if (!ciTypeInput) throw new Error('ci_type is required.');
         var resolvedType = resolveCiType(ciTypeInput);
         var ciType = resolvedType.name;
-        var identifiers = identifierGroups(payload);
-        var result = lookup(ciType, identifiers);
+        var identifier = ciIdentifier(payload);
+        var result = lookup(ciType, identifier);
         return JSON.stringify({
             success: true,
             status: 'ok',
             requested_ci_type: ciTypeInput,
             ci_type: ciType,
             ci_type_display_name: resolvedType.label,
-            identifier_count: identifiers.length,
+            ci_identifier: identifier,
             match_count: result.records.length,
             truncated: result.truncated,
-            identifier_results: result.groups,
             records: result.records
         });
     } catch (ex) {

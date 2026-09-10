@@ -23,26 +23,12 @@ One Event-style identifier object:
 
 `ci_type` accepts either the technical class name (`cmdb_ci_server`) or its exact display name (`Business Application`). The fields inside one identifier object are combined with AND, matching Event Management's JSON `ci_identifier` shape. Every real field inherited or defined on the selected class can be used. A JSON-encoded string is also accepted.
 
-Many identifier objects in one call:
-
-```json
-{
-  "ci_type": "cmdb_ci_server",
-  "ci_identifiers": [
-    {"serial_number": "ABC123"},
-    {"fqdn": "app02.example.com"}
-  ]
-}
-```
-
-Identifier groups are evaluated independently. The response preserves per-group matches in `identifier_results` and also returns a flattened, de-duplicated `records` array.
-
 ## Guardrails
 
 - Exact matches only; no caller-supplied encoded queries or operators.
 - `ci_type` must be a real class extending `cmdb_ci`.
 - Identifier keys must resolve to real fields on the selected CI class. Caller-supplied operators and encoded queries are not accepted.
-- Maximum 25 identifier groups, 50 matches per group, and 100 distinct records per response.
+- Maximum 100 matching records per response; `truncated` reports when the limit is reached.
 - Matching records include every field available on the resolved class, with raw and display values.
 - The endpoint is service-mediated access. It does not grant Table API or list access to CMDB.
 

@@ -19,7 +19,7 @@ token = base64.b64encode(f"{os.environ['servicenow_user']}:{os.environ['servicen
 url = instance + "/api/sn_em_connector/em/inbound_event?source=usbemCmdbLookup"
 headers = {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Basic " + token, "X-USBEM-Connector": "usbemCmdbLookup"}
 
-payload = {"ci_type": "cmdb_ci", "ci_identifiers": [{"name": "__USBEM_LOOKUP_EXPECTED_MISS__"}, {"sys_id": "00000000000000000000000000000000"}]}
+payload = {"ci_type": "cmdb_ci", "ci_identifier": {"name": "__USBEM_LOOKUP_EXPECTED_MISS__", "sys_id": "00000000000000000000000000000000"}}
 request = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method="POST")
 with urllib.request.urlopen(request, timeout=60) as response:
     result = json.load(response)
@@ -31,7 +31,6 @@ if "result" in result:
 if "success" not in result:
     raise RuntimeError("Unexpected connector response: " + json.dumps(result))
 assert result["success"] is True
-assert result["identifier_count"] == 2
 assert result["match_count"] == 0
-assert len(result["identifier_results"]) == 2
-print(json.dumps({"http_status": 200, "success": result["success"], "identifier_count": result["identifier_count"], "match_count": result["match_count"]}, indent=2))
+assert result["ci_identifier"] == payload["ci_identifier"]
+print(json.dumps({"http_status": 200, "success": result["success"], "match_count": result["match_count"]}, indent=2))
